@@ -135,6 +135,8 @@
   .docitem .ds{font-size:10.5px;color:var(--dim);margin-top:3px}
   .srcbox{font-size:11px;color:var(--muted);background:#101a24;padding:9px 11px;
     border-radius:6px;line-height:1.65;margin-top:8px}
+  .edgwhy{font-size:12.5px;color:var(--txt);background:var(--panel2);padding:11px 12px;
+    border-radius:0 6px 6px 0;line-height:1.75;margin-top:4px}
 
   footer{flex:0 0 auto;padding:7px 18px;background:#101722;border-top:1px solid var(--line);
     font-size:10.5px;color:var(--dim);display:flex;gap:18px;flex-wrap:wrap;align-items:center}
@@ -297,7 +299,7 @@ const esc = s =&gt; String(s==null?&#x27;&#x27;:s).replace(/[&amp;&lt;&gt;&quot;
 /* ---------------- 全域狀態 ---------------- */
 let forced=null;
 let cur=null, mode=&#x27;terms&#x27;, minW=1, maxN=44, showAllLabels=false;
-let nodes=[], links=[], byNode={}, selected=null, hover=null;
+let nodes=[], links=[], byNode={}, selected=null, selectedEdge=null, hover=null;
 let cam={x:0,y:0,k:1}, dragNode=null, panning=false, panStart=null, dirty=true;
 let W=0,H=0,DPR=1, raf=null;
 
@@ -316,7 +318,7 @@ function openPlace(id,m){
   $(&#x27;modes&#x27;).querySelectorAll(&#x27;button&#x27;).forEach(b=&gt;b.classList.toggle(&#x27;on&#x27;,b.dataset.mode===mode));
   syncModeControls();
   computeVerdict(p);
-  selected=null; showAllLabels=false; $(&#x27;btnLabels&#x27;).textContent=&#x27;關（只顯示重點詞）&#x27;;
+  selected=null;selectedEdge=null; showAllLabels=false; $(&#x27;btnLabels&#x27;).textContent=&#x27;關（只顯示重點詞）&#x27;;
   $(&#x27;btnLabels&#x27;).classList.remove(&#x27;on&#x27;);
   renderDetail(null);
   resize();          // netView 由隱藏轉為顯示，必須重新量測畫布
@@ -367,8 +369,8 @@ function buildGraph(){
       links.push({a:&#x27;T:&#x27;+e.a,b:&#x27;T:&#x27;+e.b,w:e.w,docs:e.docs,kind:&#x27;bond&#x27;});
     }
   }else if(mode===&#x27;docs&#x27;){
-    // 地點關係：同一地點的多則傳說合併為單一節點；邊=S/T/C 關係
-    const ns=PLACE_NODES.length?PLACE_NODES:[];
+    // 地點關係：合併 P（GIS 地點）與 B（書表地點）全部節點，確保所有 S/T/C 關係線都可顯示
+    const ns=CN&amp;&amp;CN.all_nodes&amp;&amp;CN.all_nodes.length?CN.all_nodes:PLACE_NODES;
     ns.forEach((nd,i)=&gt;{
       const a=i/Math.max(1,ns.length)*Math.PI*2, rad=230;
       const w=(CN?.places?.[nd.id]?.stats?.n_docs)||3;
@@ -493,9 +495,13 @@ function draw(){
     const a=byNode[l.a],b=byNode[l.b];if(!a||!b)continue;
     const act=near?(near.has(l.a)&amp;&amp;near.has(l.b)):true;
     const focus=selected&amp;&amp;(l.a===selected||l.b===selected);
+    const isSelEdge=selectedEdge===l;
     ctx.beginPath();ctx.moveTo(sx(a.x),sy(a.y));ctx.lineTo(sx(b.x),sy(b.y));
+    ctx.setLineDash([]);
     const PC={S:&#x27;201,166,107&#x27;,T:&#x27;164,80,75&#x27;,C:&#x27;106,169,161&#x27;};
-    if(focus){ctx.strokeStyle=&#x27;rgba(239,123,114,.92)&#x27;;ctx.lineWidth=1.2+Math.min(3.4,l.w*0.42)*cam.k;}
+    if(isSelEdge){ctx.strokeStyle=&#x27;rgba(255,208,138,.98)&#x27;;ctx.lineWidth=2.2+Math.min(3.6,l.w*0.42)*cam.k;
+      if(l.kind===&#x27;place&#x27;&amp;&amp;l.ptype===&#x27;T&#x27;)ctx.setLineDash([6,4]);else ctx.setLineDash([]);}
+    else if(focus){ctx.strokeStyle=&#x27;rgba(239,123,114,.92)&#x27;;ctx.lineWidth=1.2+Math.min(3.4,l.w*0.42)*cam.k;ctx.setLineDash([]);}
     else if(act){
       if(l.kind===&#x27;place&#x27;&amp;&amp;PC[l.ptype]){ctx.strokeStyle=`rgba(${PC[l.ptype]},${Math.min(.6,.28+l.w*.08)})`;ctx.lineWidth=(.7+Math.min(2.2,l.w*.3))*Math.min(1.6,cam.k);}
       else{ctx.strokeStyle=`rgba(150,168,196,${mode===&#x27;bipart&#x27;?.13:Math.min(.42,.11+l.w*.035)})`;
@@ -553,6 +559,22 @@ function pick(mx,my){
   }
   return best;
 }
+/* 線段命中：找尋距離滑鼠最近的 S/T/C 關係線（含書表 B 節點） */
+function pickLink(mx,my){
+  let best=null,bd=1e9;
+  for(const l of links){
+    if(l.kind!==&#x27;place&#x27;)continue;          // 只讓 S/T/C 關係線可點選
+    const a=byNode[l.a],b=byNode[l.b];if(!a||!b)continue;
+    const ax=sx(a.x),ay=sy(a.y),bx=sx(b.x),by=sy(b.y);
+    const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;
+    let t=len2?((mx-ax)*dx+(my-ay)*dy)/len2:0;
+    t=Math.max(0,Math.min(1,t));
+    const px=ax+t*dx,py=ay+t*dy,d=(px-mx)**2+(py-my)**2;
+    if(d&lt;bd){bd=d;best=l;}
+  }
+  const TH=7;                              // 容差 7px
+  return bd&lt;=TH*TH?best:null;
+}
 cv.addEventListener(&#x27;mousedown&#x27;,e=&gt;{
   const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
   const n=pick(mx,my);
@@ -578,7 +600,17 @@ window.addEventListener(&#x27;mousemove&#x27;,e=&gt;{
       `&lt;br&gt;&lt;span style=&quot;color:var(--dim)&quot;&gt;點擊查看 bonds&lt;/span&gt;`;
     tip.style.display=&#x27;block&#x27;;
     tip.style.left=Math.min(mx+14,W-290)+&#x27;px&#x27;;tip.style.top=Math.min(my+14,H-90)+&#x27;px&#x27;;
-  }else tip.style.display=&#x27;none&#x27;;
+  }else{
+    const l=pickLink(mx,my);
+    if(l){
+      const LBL={S:&#x27;文獻／場址&#x27;,T:&#x27;敘事母題&#x27;,C:&#x27;文化詮釋&#x27;};
+      tip.innerHTML=`&lt;b&gt;${esc(LBL[l.ptype]||l.ptype||&#x27;關係&#x27;)}線&lt;/b&gt;&lt;br&gt;`+
+        `${esc(byNode[l.a]?.label||l.a)} ↔ ${esc(byNode[l.b]?.label||l.b)}`+
+        `&lt;br&gt;&lt;span style=&quot;color:var(--dim)&quot;&gt;點擊查看準確關係&lt;/span&gt;`;
+      tip.style.display=&#x27;block&#x27;;
+      tip.style.left=Math.min(mx+14,W-290)+&#x27;px&#x27;;tip.style.top=Math.min(my+14,H-90)+&#x27;px&#x27;;
+    }else tip.style.display=&#x27;none&#x27;;
+  }
 });
 window.addEventListener(&#x27;mouseup&#x27;,e=&gt;{
   const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
@@ -593,7 +625,10 @@ window.addEventListener(&#x27;mouseup&#x27;,e=&gt;{
 cv.addEventListener(&#x27;click&#x27;,e=&gt;{
   const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
   const n=pick(mx,my);
-  selected=n?n.id:null;renderDetail(n);dirty=true;kick();
+  if(n){selected=n.id;selectedEdge=null;renderDetail(n);dirty=true;kick();return;}
+  const l=pickLink(mx,my);
+  if(l){selected=null;selectedEdge=l;renderEdgeDetail(l);dirty=true;kick();return;}
+  selected=null;selectedEdge=null;renderDetail(null);dirty=true;kick();
 });
 cv.addEventListener(&#x27;dblclick&#x27;,e=&gt;{
   const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
@@ -617,8 +652,9 @@ function renderDetail(n){
     K.textContent=&#x27;節點詳情&#x27;;T.textContent=&#x27;尚未選取&#x27;;M.textContent=&#x27;點擊圖中任一詞語或地點節點&#x27;;
     B.innerHTML=`&lt;div class=&quot;dt-empty&quot;&gt;
       &lt;b&gt;詞語節點&lt;/b&gt;：列出它與其他詞的所有 bonds（共現強度、共同出現在哪些文獻），並附原文例句。&lt;br&gt;&lt;br&gt;
-      &lt;b&gt;地點節點&lt;/b&gt;：列出傳說來源、與其他地點共享了哪些詞、以及 S/T/C 關係。&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;
-      &lt;b&gt;研究限制&lt;/b&gt;：此圖比較同一本書內的節錄，並非獨立來源互證。&lt;/div&gt;`;
+      &lt;b&gt;地點節點&lt;/b&gt;：列出傳說來源、與其他地點共享了哪些詞、以及 S/T/C 關係。&lt;br&gt;&lt;br&gt;
+      &lt;b&gt;關係線&lt;/b&gt;：直接點擊圖上的 S／T／C 連線，右方即顯示該線的&lt;b&gt;準確關係&lt;/b&gt;與比較理由，以及連線兩端各自的文獻。&lt;br&gt;&lt;br&gt;
+      &lt;b&gt;研究限制&lt;/b&gt;：此圖比較同一本書內的節錄，並非獨立來源互證；連線不證明傳聞為真或故事互相流傳。&lt;/div&gt;`;
     return;
   }
   const p=cur;
@@ -710,6 +746,52 @@ function renderDetail(n){
   }
   B.scrollTop=0;
 }
+/* ---------------- 詳情面板：S/T/C 關係線的準確關係 ---------------- */
+function renderEdgeDetail(l){
+  const K=$(&#x27;dtKicker&#x27;),T=$(&#x27;dtTitle&#x27;),M=$(&#x27;dtMeta&#x27;),B=$(&#x27;dtBody&#x27;);
+  const LBL={S:&#x27;文獻／場址&#x27;,T:&#x27;敘事母題&#x27;,C:&#x27;文化詮釋&#x27;};
+  const COL={S:&#x27;#c9a66b&#x27;,T:&#x27;#a4504b&#x27;,C:&#x27;#6aa9a1&#x27;};
+  const a=byNode[l.a],b=byNode[l.b];
+  const type=l.ptype||&#x27;?&#x27;;
+  const la=a?.label||l.a.replace(/^L:/,&#x27;&#x27;), lb=b?.label||l.b.replace(/^L:/,&#x27;&#x27;);
+  K.textContent=`關係線 · ${LBL[type]||type}`;
+  K.style.color=COL[type]||&#x27;var(--dim)&#x27;;
+  T.textContent=`${la} ↔ ${lb}`;
+  M.textContent=`${type} 類關係 · 點擊下的連線所附的比較理由`;
+  let h=&#x27;&#x27;;
+  h+=`&lt;div class=&quot;bonds-hd&quot; style=&quot;color:${COL[type]||&#x27;var(--term)&#x27;}&quot;&gt;準確關係 · ${LBL[type]||type}&lt;/div&gt;`;
+  h+=`&lt;div class=&quot;edgwhy&quot; style=&quot;border-left:3px solid ${COL[type]||&#x27;var(--term)&#x27;}&quot;&gt;${esc(l.why||&#x27;（此線未附比較理由）&#x27;)}&lt;/div&gt;`;
+  // 兩端節點：可點擊跳轉，並附各地點摘要
+  h+=`&lt;div class=&quot;bonds-hd&quot;&gt;連線兩端&lt;/div&gt;`;
+  for(const nd of [a,b]){
+    if(!nd)continue;
+    const meta=nd.meta||{},pid=meta.pid||&#x27;&#x27;,pl=CN?.places?.[pid];
+    const sum=(meta.place?.summary||meta.place?.geo?.summary||&#x27;&#x27;);
+    h+=`&lt;div class=&quot;docitem&quot; data-place=&quot;${esc(pid)}&quot;&gt;&lt;div class=&quot;dt&quot;&gt;${esc(nd.label)}${pid?` &lt;span style=&quot;color:var(--dim)&quot;&gt;［${esc(pid)}］&lt;/span&gt;`:&#x27;&#x27;}&lt;/div&gt;`+
+       (sum?`&lt;div class=&quot;ds&quot;&gt;${esc(sum.slice(0,120))}${sum.length&gt;120?&#x27;…&#x27;:&#x27;&#x27;}&lt;/div&gt;`:
+         (pl?`&lt;div class=&quot;ds&quot;&gt;${pl.docs.length} 則傳說文獻 · ${pl.terms.length} 個共現詞&lt;/div&gt;`:&#x27;&#x27;))+`&lt;/div&gt;`;
+  }
+  // 兩端各自所屬的傳說文獻（去重、精簡）
+  const docs=[];const seen=new Set();
+  for(const nd of [a,b]){
+    const pid=nd?.meta?.pid,pl=pid&amp;&amp;CN?.places?.[pid];
+    if(!pl)continue;
+    for(const d of pl.docs){
+      if(seen.has(d.id))continue;seen.add(d.id);docs.push({d,pid});
+    }
+  }
+  if(docs.length){
+    h+=`&lt;div class=&quot;bonds-hd&quot;&gt;兩端傳說文獻（${docs.length}）&lt;/div&gt;`;
+    for(const {d,pid} of docs.slice(0,14)){
+      h+=`&lt;div class=&quot;docitem&quot; data-place=&quot;${esc(pid)}&quot;&gt;&lt;div class=&quot;dt&quot;&gt;${esc(d.src||d.id)} &lt;span style=&quot;color:var(--dim)&quot;&gt;［${esc(pid)}］&lt;/span&gt;&lt;/div&gt;`+
+         `&lt;div class=&quot;ds&quot;&gt;${esc((d.text||&#x27;&#x27;).slice(0,90))}…&lt;/div&gt;&lt;/div&gt;`;
+    }
+  }
+  h+=`&lt;div class=&quot;srcbox&quot; style=&quot;font-size:10px;color:var(--dim)&quot;&gt;連線只表示可對讀的比較關係，&lt;b&gt;不證明&lt;/b&gt;傳聞為真、故事互相流傳或存在因果。&lt;/div&gt;`;
+  B.innerHTML=h;
+  B.querySelectorAll(&#x27;[data-place]&#x27;).forEach(x=&gt;x.onclick=()=&gt;selectById(&#x27;L:&#x27;+x.dataset.place));
+  B.scrollTop=0;
+}
 function selectById(id){
   const wantTerm=id.startsWith(&#x27;T:&#x27;), wantPlace=id.startsWith(&#x27;L:&#x27;);
   // 目標節點類型與目前視圖不符時，自動切到能顯示它的視圖
@@ -734,7 +816,7 @@ function selectById(id){
     forced=id;buildGraph();forced=null;
   }
   if(!byNode[id])return;
-  selected=id;renderDetail(byNode[id]);dirty=true;kick();
+  selected=id;selectedEdge=null;renderDetail(byNode[id]);dirty=true;kick();
 }
 
 /* ---------------- 控制項 ---------------- */
@@ -757,12 +839,12 @@ $(&#x27;modes&#x27;).querySelectorAll(&#x27;button&#x27;).forEach(b=&gt;b.onclic
   $(&#x27;modes&#x27;).querySelectorAll(&#x27;button&#x27;).forEach(x=&gt;x.classList.toggle(&#x27;on&#x27;,x===b));
   syncModeControls();
   maxN=44;$(&#x27;maxN&#x27;).value=44;$(&#x27;vMaxN&#x27;).textContent=&#x27;44&#x27;;
-  selected=null;renderDetail(null);buildGraph();fitCamera();
+  selected=null;selectedEdge=null;renderDetail(null);buildGraph();fitCamera();
 });
 $(&#x27;minW&#x27;).oninput=e=&gt;{minW=+e.target.value;$(&#x27;vMinW&#x27;).textContent=minW;
-  selected=null;renderDetail(null);buildGraph();kick();};
+  selected=null;selectedEdge=null;renderDetail(null);buildGraph();kick();};
 $(&#x27;maxN&#x27;).oninput=e=&gt;{maxN=+e.target.value;$(&#x27;vMaxN&#x27;).textContent=maxN;
-  selected=null;renderDetail(null);buildGraph();kick();};
+  selected=null;selectedEdge=null;renderDetail(null);buildGraph();kick();};
 $(&#x27;btnLabels&#x27;).onclick=()=&gt;{showAllLabels=!showAllLabels;
   $(&#x27;btnLabels&#x27;).textContent=showAllLabels?&#x27;開（顯示全部標籤）&#x27;:&#x27;關（只顯示重點詞）&#x27;;
   $(&#x27;btnLabels&#x27;).classList.toggle(&#x27;on&#x27;,showAllLabels);dirty=true;kick();};
