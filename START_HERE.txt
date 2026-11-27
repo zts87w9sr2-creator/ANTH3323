@@ -1,0 +1,15 @@
+港島冥勝 · Haunt Kong Island｜網站試作版
+
+1. 解壓整個 ZIP 至獨立資料夾，所有資料夾與 index.html 保持同一層。
+2. 可以先雙擊 index.html。若瀏覽器顯示 404 或不能載入，在該資料夾開啟 Terminal：
+   python3 -m http.server 8000
+   再開啟 http://127.0.0.1:8000/ （不要關閉 Terminal）。
+3. AWS Amplify 手動部署時，直接使用此 ZIP，index.html 已在 ZIP 最外層。需網絡連線才能使用 OpenStreetMap 及 HKGeoTiles。
+
+功能：四頁導覽、可收合搜尋、多主題／行政區／年代／定位精度篩選、地圖模式、圖例、地圖歸位、四張歷史圖層與各自透明度、單張歷史圖的 Swipe 比較、故事翻頁及資料來源、相關地點。Analysis / Experience 為預留頁。
+
+資料：保留 qgis2web 原始地點與幾何、原始 1927/1957 PNG、分類表顏色及原圖層設定的座標與範圍。42 則故事、33 個地點、31 個點座標；其餘兩個用匯出的線／候選範圍定位。故事取自備份 Excel，已補入已知英名修訂，仍需與本機最新版核對。圖標使用匯出 ZIP 的 16px 圖例原圖，放大顯示；若需要更銳利版本，可替換 assets/high.png、murray.png、wahfu.png、skull.png。故事圖片為備份的場址參考圖，已補 P21。圖片來源及授權、原始歷史圖來源需提交前確認。Read More 使用原表的故事記載和背景，非新增或杜撰全文。
+
+測試：在離線 Chromium DOM 測試中確認 42 則／33 地點、關鍵字篩選、高街故事翻頁、Read More、搜尋欄收合、主題圖例切換、Swipe 控件、導覽回到地圖保留狀態、七姊妹點擊、手機搜尋欄；無 JavaScript 執行錯誤。工作環境阻止本機網址與 file:// 瀏覽器導覽，無法驗證實際外部底圖及部署後 404 或 Swipe 歷史圖像視覺效果。請在 Mac 或 Amplify 上驗收。
+
+原始 qgis2web HTML 另存為 qgis-original.html；新 index.html 不修改原始 GeoJSON。原始使用者 ZIP 未變更。
