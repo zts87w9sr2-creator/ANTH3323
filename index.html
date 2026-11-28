@@ -227,7 +227,7 @@
         &lt;div class=&quot;legend&quot;&gt;
           &lt;span&gt;&lt;i style=&quot;background:var(--term)&quot;&gt;&lt;/i&gt;詞語節點&lt;/span&gt;
           &lt;span&gt;&lt;i style=&quot;background:var(--doc)&quot;&gt;&lt;/i&gt;文獻／節錄節點&lt;/span&gt;
-          &lt;span&gt;&lt;i style=&quot;background:#8fd8cc&quot;&gt;&lt;/i&gt;地點節點&lt;/span&gt;
+          &lt;span&gt;&lt;i style=&quot;background:#202b27;border:1px solid #a6baa7;border-radius:2px&quot;&gt;&lt;/i&gt;地點圖示&lt;/span&gt;
           &lt;span&gt;&lt;i style=&quot;background:var(--edge)&quot;&gt;&lt;/i&gt;共現關係&lt;/span&gt;
           &lt;span&gt;&lt;i style=&quot;background:#c9a66b&quot;&gt;&lt;/i&gt;S 文獻／場址&lt;/span&gt;
           &lt;span&gt;&lt;i style=&quot;background:#a4504b&quot;&gt;&lt;/i&gt;T 敘事母題&lt;/span&gt;
@@ -499,6 +499,105 @@ function neighbors(id){
   for(const l of links){if(l.a===id)s.add(l.b);if(l.b===id)s.add(l.a);}
   return s;
 }
+/* ANTH3323 · Place emblems, drawn at the same coordinates as their graph nodes. */
+const PLACE_GLYPHS = {
+  murray:&#x27;M2 18H22 M3 8L12 3L21 8Z M4 9V17M20 9V17M6 17V13A2 2 0 0 1 10 13V17 M14 17V13A2 2 0 0 1 18 13V17 M2 21H22&#x27;,
+  asylum:&#x27;M2 20H22M4 19V8H8V4H16V8H20V19 M2 8H22 M9 19V14A3 3 0 0 1 15 14V19 M6 11V13M18 11V13 M10 6H14&#x27;,
+  estate:&#x27;M3 21H22M4 20V7L15 3V20 M15 5L20 8V20 M7 8V18M11 7V18M5 11H14M5 14H14M5 17H14M17 10L19 11M17 14L19 15&#x27;,
+  office:&#x27;M3 21H21 M6 20V4H18V20 M9 7H11M13 7H15M9 10H11M13 10H15M9 13H11M13 13H15M10 20V16H14V20&#x27;,
+  ship:&#x27;M2 16H22L18 20H6Z M6 15V11H17L19 15 M12 11V4M12 5L17 7H12 M2 22Q5 20 8 22T14 22T20 22&#x27;,
+  parking:&#x27;M3 21H21M5 20V5H19V20 M5 10H19M5 15H19 M8 8L14 6M8 13L14 11M8 18L14 16&#x27;,
+  prison:&#x27;M3 21H21M5 20V10A7 7 0 0 1 19 10V20 M8 20V9 M12 12V4M16 20V9 M5 11H19 M10 14H14V19H10Z&#x27;,
+  badge:&#x27;M12 3L19 6V12Q19 18 12 21Q5 18 5 12V6Z M12 7L13.5 10L17 10.5L14.5 13L15 16.5L12 15L9 16.5L9.5 13L7 10.5L10.5 10Z&#x27;,
+  camp:&#x27;M2 19H22 M4 18V10L10 5L16 10V18 M2 10L10 4L18 10 M7 18V13H12V18 M19 6V18 M19 6H22L21 8H19&#x27;,
+  court:&#x27;M3 20H21 M4 19V7H20V19 M4 11H20 M12 7V19 M9 15A3 3 0 1 0 15 15A3 3 0 1 0 9 15&#x27;,
+  tunnel:&#x27;M2 21H22 M4 20V12A8 8 0 0 1 20 12V20 M8 20V12A4 4 0 0 1 16 12V20 M10 21L12 17L14 21&#x27;,
+  infantry:&#x27;M3 20L7 12L9 20 M12 20L15 12L18 20 M5 10V8A2 2 0 0 1 9 8V10Z M13 10V8A2 2 0 0 1 17 8V10Z M9 13L13 16M17 13L21 16&#x27;,
+  figure:&#x27;M12 4A2 2 0 1 0 12 8A2 2 0 1 0 12 4 M8 20L10 10H14L16 20H8 M5 21H19&#x27;,
+  stairs:&#x27;M3 21L9 7L12 3L15 7L21 21M5 17H19M7 13H17M8 10H16M10 7H14 M3 13L7 8 M17 8L21 13&#x27;,
+  villa:&#x27;M2 21H22M5 20V10H19V20 M3 10L12 4L21 10 M8 14H10V16H8Z M14 14H16V16H14Z M11 20V17H13V20&#x27;,
+  school:&#x27;M3 21H21M5 20V9L12 5L19 9V20 M12 5V2M12 3H17 M8 12H10V14H8Z M14 12H16V14H14Z M10 20V16H14V20&#x27;,
+  door:&#x27;M3 21H21 M6 20V6H18V20 M9 19V9L15 7V18Z M13 13H14&#x27;,
+  warehouse:&#x27;M2 21H22 M4 20V10L8 6V10L12 6V10L17 6L20 10V20 M8 20V14H16V20 M8 16H16M8 18H16&#x27;,
+  lamppost:&#x27;M4 21H20 M10 20V7Q10 4 13 4H17 M14 6H20L18 9H16Z M15 11L13 14M19 11L21 14&#x27;,
+  unknown:&#x27;M3 21H21M5 20V10L12 5L19 10V20 M9 12Q9 9 12 9Q16 9 15 12L12 15V16 M12 18H12.1&#x27;,
+  elevator:&#x27;M4 21H20 M6 20V7H18V20 M12 7V20 M10 4L12 2L14 4 M8 12V15M16 12V15&#x27;,
+  altar:&#x27;M3 21H21 M5 20V10H19V20 M3 10L6 6H18L21 10 M7 17H17M12 12V16 M10 14H14&#x27;,
+  ufo:&#x27;M3 14Q12 20 21 14Q17 10 7 10Z M8 10A4 4 0 0 1 16 10 M8 19L6 21 M12 19V22 M16 19L18 21&#x27;,
+  apartment:&#x27;M3 21H21 M5 20V6H11V20 M13 20V3H19V20 M7 9H9M7 12H9M7 15H9M15 6H17M15 9H17M15 12H17M15 15H17&#x27;,
+  university:&#x27;M3 21H21 M5 20V10H19V20 M3 10L12 4L21 10Z M7 12V18M17 12V18 M10 20V15A2 2 0 0 1 14 15V20&#x27;,
+  mirror:&#x27;M7 19V6Q12 2 17 6V19Z M4 21H20 M14 6L11 11L14 12L10 16 M11 11L8 10&#x27;,
+  letter:&#x27;M3 6H21V18H3Z M3 7L12 13L21 7 M3 17L9 12M21 17L15 12&#x27;,
+  waterfall:&#x27;M2 13L7 8L11 10L15 4L22 12 M15 6L13 15M18 8L16 15 M2 18Q5 15 8 18T14 18T20 18 M2 21Q5 18 8 21T14 21T20 21&#x27;,
+  waves:&#x27;M3 12L8 7L12 10L17 6L21 11 M2 15Q5 12 8 15T14 15T20 15 M2 19Q5 16 8 19T14 19T20 19&#x27;,
+  coffin:&#x27;M9 3H15L20 8L16 21H8L4 8Z M12 7V16M9 10H15&#x27;,
+  graves:&#x27;M2 21H22 M4 20V15A3 3 0 0 1 10 15V20 M13 20V9A3 3 0 0 1 19 9V20 M16 9V15 M14 11H18&#x27;,
+  cannon:&#x27;M3 21H21 M7 17L19 8L21 11L11 19 M7 15A3 3 0 1 0 7 21A3 3 0 1 0 7 15 M3 9H9 M3 12H7&#x27;,
+  cradle:&#x27;M4 13Q5 20 12 20Q19 20 20 13Z M4 13Q5 7 9 7H11V13 M9 22H15 M16 8L18 6M18 10L21 9&#x27;,
+  lion:&#x27;M3 21H21 M6 20V17H18V20 M7 17L5 12L7 7L9 8L12 5L15 8L17 7L19 12L17 17 M8 11H10M14 11H16 M10 14L12 16L14 14&#x27;,
+  horse:&#x27;M4 21H20 M6 19H18 M8 17L10 13L8 10L13 5L17 7L18 11L14 13L16 17H8 M13 8H14&#x27;,
+  statue:&#x27;M4 21H20M7 20V17H17V20 M10 17L9 13L11 9H14L16 14L14 17 M13 4A2 2 0 1 0 13 8A2 2 0 1 0 13 4&#x27;,
+  fox:&#x27;M4 5L10 9H14L20 5L18 15L12 20L6 15Z M7 12L10 14M17 12L14 14M11 16H13&#x27;,
+  stone:&#x27;M3 17L7 7L14 4L21 11L20 18L10 21Z M13 6L11 11L15 14L12 19&#x27;,
+  screen:&#x27;M3 6H21V17H3Z M5 19H19 M8 12L11 9L15 13L18 10&#x27;,
+  flame:&#x27;M12 3Q16 8 15 11L18 9Q22 14 18 19Q12 24 6 19Q3 15 8 9Q7 13 10 14Q13 10 12 3Z&#x27;,
+  banner:&#x27;M5 21V4H19 M8 5V18L12 16L16 18V5 M11 8H13M11 11H13M11 14H13&#x27;,
+  rubble:&#x27;M2 21H22 M5 20V6H13V20 M13 10L20 13L18 20 M7 9H10M7 12H10 M13 10L10 14L13 17&#x27;,
+  lantern:&#x27;M12 3V6 M8 6H16L18 10V16L15 19H9L6 16V10Z M8 10H16M8 16H16 M10 19V22M14 19V22&#x27;
+};
+const PLACE_EMBLEMS = {
+  P01:&#x27;murray&#x27;, P02:&#x27;murray&#x27;, P03:&#x27;parking&#x27;, P04:&#x27;asylum&#x27;, P05:&#x27;estate&#x27;, P06:&#x27;coffin&#x27;,
+  P07:&#x27;waterfall&#x27;, P08:&#x27;graves&#x27;, P09:&#x27;villa&#x27;, P10:&#x27;tunnel&#x27;, P11:&#x27;letter&#x27;, P12:&#x27;elevator&#x27;,
+  P13:&#x27;university&#x27;, P14:&#x27;mirror&#x27;, P15:&#x27;fox&#x27;, P16:&#x27;fox&#x27;, P17:&#x27;waves&#x27;, P18:&#x27;flame&#x27;, P19:&#x27;graves&#x27;,
+  P20:&#x27;villa&#x27;, P21:&#x27;ship&#x27;, P22:&#x27;school&#x27;, P23:&#x27;prison&#x27;, P24:&#x27;screen&#x27;, P25:&#x27;badge&#x27;, P26:&#x27;camp&#x27;,
+  P27:&#x27;court&#x27;, P28:&#x27;warehouse&#x27;, P29:&#x27;cannon&#x27;, P30:&#x27;mirror&#x27;, P31:&#x27;rubble&#x27;, P32:&#x27;apartment&#x27;,
+  B02:&#x27;stone&#x27;, B03:&#x27;figure&#x27;, B04:&#x27;lion&#x27;, B05:&#x27;lion&#x27;, B06:&#x27;horse&#x27;, B07:&#x27;statue&#x27;, B08:&#x27;lion&#x27;,
+  B09:&#x27;lantern&#x27;, B10:&#x27;door&#x27;, B11:&#x27;lamppost&#x27;, B12:&#x27;unknown&#x27;, B16:&#x27;elevator&#x27;, B17:&#x27;altar&#x27;,
+  B19:&#x27;infantry&#x27;, B20:&#x27;figure&#x27;, B21:&#x27;stairs&#x27;, B22:&#x27;office&#x27;, B23:&#x27;coffin&#x27;, B24:&#x27;ufo&#x27;,
+  B27:&#x27;banner&#x27;, B28:&#x27;cradle&#x27;
+};
+const FEATURED_PLACES = new Set([&#x27;P01&#x27;,&#x27;P04&#x27;,&#x27;P05&#x27;]);
+const EMBLEM_PATHS = Object.fromEntries(
+  Object.entries(PLACE_GLYPHS).map(([name, path]) =&gt; [name, new Path2D(path)])
+);
+function screenRadius(node) {
+  if (node.kind === &#x27;place&#x27;) {
+    const size = Math.max(6, Math.min(17, (mode === &#x27;docs&#x27; ? 12 : 10) * cam.k));
+    return size + (FEATURED_PLACES.has(node.meta.pid) ? 1.5 : 0);
+  }
+  return Math.max(2.5, node.r * Math.min(1.5, cam.k));
+}
+function drawEmblem(node, x, y, radius, selected, hovered) {
+  const featured = FEATURED_PLACES.has(node.meta.pid);
+  ctx.save();
+  ctx.translate(x, y);
+  const size = radius * 2;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(-radius,-radius,size,size,Math.max(2,radius*.21));
+  else ctx.rect(-radius,-radius,size,size);
+  ctx.fillStyle = selected ? &#x27;#453327&#x27; : featured ? &#x27;#2e2421&#x27; : &#x27;#202b27&#x27;;
+  ctx.fill();
+  ctx.strokeStyle = selected ? &#x27;#ffdda3&#x27; : hovered ? &#x27;#e4ddbd&#x27; : featured ? &#x27;#bf8e77&#x27; : &#x27;#72968b&#x27;;
+  ctx.lineWidth = selected ? 1.7 : 1;
+  ctx.stroke();
+
+  const scale = size / 32;
+  ctx.scale(scale, scale);
+  ctx.translate(-12, -12);
+  ctx.strokeStyle = selected ? &#x27;#ffedc8&#x27; : featured ? &#x27;#f0c6a2&#x27; : &#x27;#d6ddbc&#x27;;
+  ctx.lineWidth = 1.55;
+  ctx.lineJoin = &#x27;round&#x27;;
+  ctx.lineCap = &#x27;round&#x27;;
+  ctx.stroke(EMBLEM_PATHS[PLACE_EMBLEMS[node.meta.pid] || &#x27;unknown&#x27;]);
+  if (featured) {
+    ctx.fillStyle = selected ? &#x27;#ffc481&#x27; : &#x27;#d98471&#x27;;
+    ctx.beginPath();
+    ctx.arc(24.4, -.4, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function draw(){
   if(!W||!H)return;
   ctx.clearRect(0,0,W,H);
@@ -526,7 +625,7 @@ function draw(){
   // 節點
   const sorted=[...nodes].sort((a,b)=&gt;a.r-b.r);
   for(const nd of sorted){
-    const x=sx(nd.x),y=sy(nd.y),r=Math.max(2.5,nd.r*Math.min(1.5,cam.k));
+    const x=sx(nd.x),y=sy(nd.y),r=screenRadius(nd);
     if(x&lt;-60||x&gt;W+60||y&lt;-60||y&gt;H+60)continue;
     const dim=near&amp;&amp;!near.has(nd.id);
     const isSel=selected===nd.id, isHov=hover===nd.id;
@@ -536,12 +635,16 @@ function draw(){
     ctx.globalAlpha=dim?.17:1;
     if(isSel||isHov){ctx.beginPath();ctx.arc(x,y,r+5,0,7);
       ctx.fillStyle=isSel?&#x27;rgba(232,178,106,.22)&#x27;:&#x27;rgba(111,211,199,.16)&#x27;;ctx.fill();}
+    if(nd.kind===&#x27;place&#x27;){
+      drawEmblem(nd,x,y,r,isSel,isHov);
+    } else {
     ctx.beginPath();
     if(nd.kind===&#x27;doc&#x27;){ // 文獻用圓角方塊
       const s=r*1.6;ctx.roundRect?ctx.roundRect(x-s/2,y-s/2,s,s,3):ctx.rect(x-s/2,y-s/2,s,s);
     }else ctx.arc(x,y,r,0,7);
     ctx.fillStyle=col;ctx.fill();
     ctx.lineWidth=isSel?2:1;ctx.strokeStyle=isSel?&#x27;#fff&#x27;:&#x27;rgba(10,14,20,.85)&#x27;;ctx.stroke();
+    }
     // 標籤
     const show=showAllLabels||isSel||isHov||(nd.kind===&#x27;term&#x27;&amp;&amp;nd.weight&gt;=6&amp;&amp;cam.k&gt;.65)||
                (mode===&#x27;terms&#x27;&amp;&amp;nd.weight&gt;=9)||(mode===&#x27;bipart&#x27;&amp;&amp;nd.kind===&#x27;term&#x27;)||(mode===&#x27;docs&#x27;&amp;&amp;nd.kind===&#x27;place&#x27;)||
@@ -567,8 +670,10 @@ function pick(mx,my){
   let best=null,bd=1e9;
   for(const nd of nodes){
     const d=(sx(nd.x)-mx)**2+(sy(nd.y)-my)**2;
-    const rr=Math.max(9,nd.r*cam.k+6)**2;
-    if(d&lt;rr&amp;&amp;d&lt;bd){bd=d;best=nd;}
+    const r=screenRadius(nd);
+    const dx=Math.abs(sx(nd.x)-mx),dy=Math.abs(sy(nd.y)-my);
+    const hit=nd.kind===&#x27;place&#x27; ? Math.max(dx,dy)&lt;=r+4 : d&lt;Math.max(9,nd.r*cam.k+6)**2;
+    if(hit&amp;&amp;d&lt;bd){bd=d;best=nd;}
   }
   return best;
 }
